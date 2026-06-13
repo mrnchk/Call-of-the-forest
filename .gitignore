@@ -1,0 +1,74 @@
+# ============================================
+# Call of the Forest — Android 2D Game
+# Stack: Kotlin, Compose, Hilt, Room, Ktor, JBox2D
+# ============================================
+
+# ---------- Gradle ----------
+.gradle/
+build/
+*/build/
+out/
+local.properties
+*.iml
+
+# Gradle daemon JVM config — committed for reproducible builds
+
+# ---------- Android Studio / IntelliJ ----------
+.idea/
+*.iws
+*.ipr
+!/.idea/codeStyles/
+!/.idea/runConfigurations/
+navigationEditor.xml
+assetWizardSettings.xml
+
+# ---------- Android ----------
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+*.so
+
+# ---------- Kotlin ----------
+*.kotlin_module
+
+# ---------- OS ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------- Logs & Temp ----------
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ---------- Keystores (security!) ----------
+*.jks
+*.keystore
+keystore.properties
+
+# ---------- Room / DB ----------
+*.db
+*.db-wal
+*.db-shm
+
+# ---------- Protobuf / Binary assets ----------
+*.pb
+*.proto.bin
+
+# ---------- Env & Secrets ----------
+.env
+secrets.properties
+api_keys.xml

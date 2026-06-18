@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cotf}
+      POSTGRES_USER: ${DB_USERNAME:-cotf}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cotf123}
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    ports:
+      - "0.0.0.0:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-cotf} -d ${DB_NAME:-cotf}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

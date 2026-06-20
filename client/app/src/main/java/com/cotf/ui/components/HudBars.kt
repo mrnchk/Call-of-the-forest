@@ -102,6 +102,8 @@ fun QuickInventoryBar(inventory: Map<ResourceType, Int>, modifier: Modifier = Mo
         InventorySlot("🪨", inventory.getOrDefault(ResourceType.STONE, 0), Color.Gray)
         Spacer(modifier = Modifier.width(8.dp))
         InventorySlot("🫐", inventory.getOrDefault(ResourceType.BERRY, 0), OliveGreen)
+        Spacer(modifier = Modifier.width(8.dp))
+        InventorySlot("🥩", inventory.getOrDefault(ResourceType.MEAT, 0), Color(0xFFB71C1C))
     }
 }
 

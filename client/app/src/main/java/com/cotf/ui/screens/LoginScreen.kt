@@ -71,7 +71,7 @@ fun LoginScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Поле имени
+            // Name field
             OutlinedTextField(
                 value = username,
                 onValueChange = {
@@ -95,7 +95,7 @@ fun LoginScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Поле пароля
+            // Password field
             OutlinedTextField(
                 value = password,
                 onValueChange = {
@@ -119,7 +119,7 @@ fun LoginScreen(navController: NavController) {
                 )
             )
 
-            // Сообщение об ошибке
+            // Error message
             if (error.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -134,7 +134,7 @@ fun LoginScreen(navController: NavController) {
             if (isLoading) {
                 CircularProgressIndicator(color = ForestGreen)
             } else {
-                // Кнопка Login
+                // Login button
                 ForestButton(
                     text = "Login",
                     onClick = {
@@ -182,7 +182,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Кнопка Register
+                // Register button
                 ForestButton(
                     text = "Register",
                     onClick = {

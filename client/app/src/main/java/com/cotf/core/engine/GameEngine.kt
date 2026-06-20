@@ -15,8 +15,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Игровой движок — цикл ~60 FPS в корутине.
- * Не запускается автоматически — нужно вызвать start().
+ * Game engine — ~60 FPS loop running in a coroutine.
+ * Does not start automatically — call start() explicitly.
  */
 class GameEngine {
 
@@ -25,7 +25,7 @@ class GameEngine {
     private val _state = MutableStateFlow(GameState())
     val state: StateFlow<GameState> = _state.asStateFlow()
 
-    // Ввод от игрока (джойстик)
+    // Player input (joystick)
     private var inputX = 0f
     private var inputY = 0f
 
@@ -34,7 +34,7 @@ class GameEngine {
         inputY = y.coerceIn(-1f, 1f)
     }
 
-    // Ввод действий
+    // Action input
     private var attackRequested = false
     private var harvestRequested = false
     private var consumeBerryRequested = false
@@ -103,13 +103,16 @@ class GameEngine {
         if (state.isGameOver) return state
 
         var s = state
-        s = updatePlayerMovement(s, deltaSec)
-        s = updatePlayerAttack(s, deltaSec)
-        s = updatePlayerHarvest(s)
-        s = updateConsumeBerry(s)
+        val isDying = s.player.deathAnimTime >= 0f
+        if (!isDying) {
+            s = updatePlayerMovement(s, deltaSec)
+            s = updatePlayerAttack(s, deltaSec)
+            s = updatePlayerHarvest(s)
+            s = updateConsumeBerry(s)
+        }
         s = updateMobAI(s, deltaSec)
-        s = resolveCollisions(s, deltaSec)
-        s = updateSurvival(s, deltaSec)
+        if (!isDying) s = resolveCollisions(s, deltaSec)
+        if (!isDying) s = updateSurvival(s, deltaSec)
         s = s.copy(camera = Camera(x = s.player.x, y = s.player.y))
         s = advanceTime(s, deltaSec)
         s = updateEffects(s, deltaSec)
@@ -133,17 +136,18 @@ class GameEngine {
 
     private fun updatePlayerMovement(state: GameState, deltaSec: Float): GameState {
         val player = state.player
+        val moving = inputX != 0f || inputY != 0f
         val dx = inputX * player.speed * deltaSec
         val dy = inputY * player.speed * deltaSec
-        val newDirection = if (inputX != 0f || inputY != 0f)
-            atan2(inputY, inputX) else player.direction
+        val newDirection = if (moving) atan2(inputY, inputX) else player.direction
         val newCooldown = maxOf(0f, player.attackCooldown - deltaSec)
 
         return state.copy(player = player.copy(
             x = player.x + dx,
             y = player.y + dy,
             direction = newDirection,
-            attackCooldown = newCooldown
+            attackCooldown = newCooldown,
+            isMoving = moving
         ))
     }
 
@@ -158,25 +162,43 @@ class GameEngine {
 
         val player = state.player
         val attackRange = player.radius * 2.5f
-        // Точка атаки — перед игроком
+        // Attack origin — in front of the player
         val attackX = player.x + cos(player.direction) * player.radius * 1.5f
         val attackY = player.y + sin(player.direction) * player.radius * 1.5f
 
+        // Meat drops probabilistically, max 1 per kill
+        var meatGained = 0
+
         val updatedMobs = state.mobs.map { mob ->
+            // Skip already-dying mobs
+            if (mob.state == BehaviorState.DYING) return@map mob
+
             val dx = mob.x - attackX
             val dy = mob.y - attackY
             val dist = sqrt(dx * dx + dy * dy)
 
             if (dist < attackRange + mob.radius) {
-                // Попадание — урон + knockback
                 val knockbackDist = 30f
                 val knockbackDx = if (dist > 0f) dx / dist * knockbackDist else 0f
                 val knockbackDy = if (dist > 0f) dy / dist * knockbackDist else 0f
-                mob.copy(
-                    hp = mob.hp - 25,
-                    x = mob.x + knockbackDx,
-                    y = mob.y + knockbackDy
-                )
+                val newHp = mob.hp - 25
+                if (newHp <= 0) {
+                    // Mob dies — trigger death animation
+                    if (Math.random() < mob.type.meatDropChance) meatGained += 1
+                    mob.copy(
+                        hp = 0,
+                        state = BehaviorState.DYING,
+                        deathAnimTime = DEATH_ANIM_DURATION,
+                        x = mob.x + knockbackDx,
+                        y = mob.y + knockbackDy
+                    )
+                } else {
+                    mob.copy(
+                        hp = newHp,
+                        x = mob.x + knockbackDx,
+                        y = mob.y + knockbackDy
+                    )
+                }
             } else mob
         }
         val aliveMobs = updatedMobs.filter { it.hp > 0 }
@@ -187,8 +209,14 @@ class GameEngine {
             radius = attackRange * 0.6f
         )
 
+        // Update inventory with dropped meat
+        val newInventory = if (meatGained > 0) {
+            val current = player.inventory.getOrDefault(ResourceType.MEAT, 0)
+            player.inventory + (ResourceType.MEAT to current + meatGained)
+        } else player.inventory
+
         return state.copy(
-            player = player.copy(attackCooldown = 0.4f),
+            player = player.copy(attackCooldown = 0.4f, inventory = newInventory),
             mobs = aliveMobs,
             attackEffects = state.attackEffects + effect,
             stats = state.stats.copy(mobsKilled = state.stats.mobsKilled + killedByThisAttack)
@@ -204,7 +232,7 @@ class GameEngine {
         val player = state.player
         val harvestRange = player.radius + 32f + 8f
 
-        // Найти ближайший объект в направлении взгляда
+        // Find nearest object in the direction the player is facing
         var bestObj: MapObject? = null
         var bestDist = Float.MAX_VALUE
 
@@ -214,7 +242,7 @@ class GameEngine {
             val dist = sqrt(dx * dx + dy * dy)
             if (dist > harvestRange + obj.radius) continue
 
-            // Проверяем, что объект примерно впереди игрока (±90°)
+            // Check that the object is roughly ahead of the player (±90°)
             val angleToObj = atan2(dy, dx)
             var angleDiff = angleToObj - player.direction
             while (angleDiff > Math.PI) angleDiff -= (2 * Math.PI).toFloat()
@@ -257,7 +285,7 @@ class GameEngine {
         val berryCount = player.inventory.getOrDefault(ResourceType.BERRY, 0)
         if (berryCount <= 0) return state
 
-        val newHunger = minOf(100f, player.hunger + 25f)
+        val newHunger = minOf(100f, player.hunger + 10f)
         val newInventory = player.inventory + (ResourceType.BERRY to berryCount - 1)
 
         return state.copy(player = player.copy(
@@ -285,29 +313,25 @@ class GameEngine {
             var newPatrolY = mob.patrolTargetY
             var newCooldown = maxOf(0f, mob.attackCooldown - deltaSec)
 
+            // Skip dying mobs — let the timer tick down
+            if (mob.state == BehaviorState.DYING) {
+                return@map mob.copy(deathAnimTime = maxOf(0f, mob.deathAnimTime - deltaSec))
+            }
+
             // State transitions
-            when (mob.type) {
-                MobType.WOLF -> {
-                    when {
-                        mob.hp < mob.maxHp * 0.2f -> newState = BehaviorState.FLEE
-                        distToPlayer < mob.type.attackRange -> newState = BehaviorState.ATTACK
-                        distToPlayer < mob.type.aggroRange -> newState = BehaviorState.CHASE
-                        else -> newState = BehaviorState.IDLE
-                    }
+            if (mob.type.isPredator) {
+                when {
+                    mob.hp < mob.maxHp * 0.2f          -> newState = BehaviorState.FLEE
+                    distToPlayer < mob.type.attackRange -> newState = BehaviorState.ATTACK
+                    distToPlayer < mob.type.aggroRange  -> newState = BehaviorState.CHASE
+                    else                                -> newState = BehaviorState.IDLE
                 }
-                MobType.DEER -> {
-                    if (distToPlayer < mob.type.aggroRange) {
-                        newState = BehaviorState.FLEE
-                    } else {
-                        newState = BehaviorState.PATROL
-                    }
-                }
-                MobType.GOBLIN -> {
-                    when {
-                        distToPlayer < mob.type.attackRange -> newState = BehaviorState.ATTACK
-                        distToPlayer < mob.type.aggroRange -> newState = BehaviorState.CHASE
-                        else -> newState = BehaviorState.PATROL
-                    }
+            } else {
+                // Prey (including birds): patrol, flee when threatened
+                if (distToPlayer < mob.type.aggroRange) {
+                    newState = BehaviorState.FLEE
+                } else {
+                    newState = BehaviorState.PATROL
                 }
             }
 
@@ -320,7 +344,7 @@ class GameEngine {
             }
 
             when (newState) {
-                BehaviorState.IDLE -> { /* стоит на месте */ }
+                BehaviorState.IDLE -> { /* stand still */ }
                 BehaviorState.CHASE -> {
                     newX += cos(dirToPlayer) * moveSpeed * deltaSec
                     newY += sin(dirToPlayer) * moveSpeed * deltaSec
@@ -333,10 +357,10 @@ class GameEngine {
                 }
                 BehaviorState.ATTACK -> {
                     newDirection = dirToPlayer
-                    // Урон наносится в resolveCollisions при контакте
+                    // Damage is dealt in resolveCollisions on contact
                 }
                 BehaviorState.PATROL -> {
-                    // Если нет цели патруля или достигли — генерируем новую
+                    // If no patrol target or reached it — pick a new one
                     val pdx = newPatrolX - mob.x
                     val pdy = newPatrolY - mob.y
                     val pDist = sqrt(pdx * pdx + pdy * pdy)
@@ -350,6 +374,7 @@ class GameEngine {
                         newDirection = dirToTarget
                     }
                 }
+                BehaviorState.DYING -> { /* handled above — early return */ }
             }
 
             mob.copy(
@@ -369,23 +394,27 @@ class GameEngine {
         var py = player.y
         var playerHp = player.hp
 
-        // Player vs objects
-        for (obj in state.objects) {
-            val distX = px - obj.x
-            val distY = py - obj.y
-            val dist = sqrt(distX * distX + distY * distY)
-            val minDist = player.radius + obj.radius
-            if (dist < minDist && dist > 0f) {
-                val overlap = minDist - dist
-                px += (distX / dist) * overlap
-                py += (distY / dist) * overlap
+        // Player vs objects — 3 passes to prevent tunneling through adjacent trees
+        repeat(3) {
+            for (obj in state.objects) {
+                val distX = px - obj.x
+                val distY = py - obj.y
+                val dist = sqrt(distX * distX + distY * distY)
+                val minDist = player.radius + obj.radius
+                if (dist < minDist && dist > 0f) {
+                    val overlap = minDist - dist
+                    px += (distX / dist) * overlap
+                    py += (distY / dist) * overlap
+                }
             }
         }
 
-        // Player vs mobs + mob damage
+        // Player vs mobs + mob damage (dying mobs don't block or deal damage)
         val newMobs = state.mobs.toMutableList()
         for (i in newMobs.indices) {
             val mob = newMobs[i]
+            if (mob.state == BehaviorState.DYING) continue
+
             val distX = px - mob.x
             val distY = py - mob.y
             val dist = sqrt(distX * distX + distY * distY)
@@ -395,7 +424,6 @@ class GameEngine {
                 px += (distX / dist) * overlap
                 py += (distY / dist) * overlap
 
-                // Моб наносит урон если в состоянии ATTACK и кулдаун прошёл
                 if (mob.state == BehaviorState.ATTACK && mob.attackCooldown <= 0f) {
                     playerHp -= mob.type.attackDamage
                     newMobs[i] = mob.copy(attackCooldown = 1.0f)
@@ -403,7 +431,7 @@ class GameEngine {
             }
         }
 
-        // Mob vs mob (разведение)
+        // Mob vs mob (separation)
         for (i in newMobs.indices) {
             for (j in i + 1 until newMobs.size) {
                 val a = newMobs[i]
@@ -452,23 +480,32 @@ class GameEngine {
         val player = state.player
         val isNight = state.timeOfDay < 0.2f || state.timeOfDay > 0.8f
 
-        // Голод
-        val hungerRate = if (isNight) 5f / 60f else 2f / 60f  // в секунду
+        // Hunger drains faster: 10/min during day, 20/min at night
+        val hungerRate = if (isNight) 20f / 60f else 10f / 60f
         var newHunger = maxOf(0f, player.hunger - hungerRate * deltaSec)
         var newHp = player.hp
         var hungerAccum = player.hungerDmgAccum
         var coldAccum = player.coldDmgAccum
 
-        // Урон от голода
-        if (newHunger <= 0f) {
+        // Hunger damage:
+        //   hunger == 0  → 1 HP/sec
+        //   hunger <= 20 → 1 HP every 3 sec
+        val hungerDmgInterval = when {
+            newHunger <= 0f  -> 1f   // 1 HP/sec
+            newHunger <= 20f -> 3f   // 1 HP per 3 sec
+            else             -> -1f  // no damage
+        }
+        if (hungerDmgInterval > 0f) {
             hungerAccum += deltaSec
-            while (hungerAccum >= 1f) {
+            while (hungerAccum >= hungerDmgInterval) {
                 newHp -= 1
-                hungerAccum -= 1f
+                hungerAccum -= hungerDmgInterval
             }
+        } else {
+            hungerAccum = 0f
         }
 
-        // Урон от холода ночью
+        // Cold damage at night: 1 HP/sec
         if (isNight) {
             coldAccum += deltaSec
             while (coldAccum >= 1f) {
@@ -476,7 +513,7 @@ class GameEngine {
                 coldAccum -= 1f
             }
         } else {
-            coldAccum = 0f // Днём не накапливается
+            coldAccum = 0f
         }
 
         return state.copy(player = player.copy(
@@ -493,16 +530,28 @@ class GameEngine {
         val newEffects = state.attackEffects
             .map { it.copy(remainingTime = it.remainingTime - deltaSec) }
             .filter { it.remainingTime > 0f }
-        return state.copy(attackEffects = newEffects)
+        // Remove mobs whose death animation has finished
+        val aliveMobs = state.mobs.filter { it.state != BehaviorState.DYING || it.deathAnimTime > 0f }
+        // Tick player death timer
+        val newPlayer = if (state.player.deathAnimTime > 0f) {
+            state.player.copy(deathAnimTime = maxOf(0f, state.player.deathAnimTime - deltaSec))
+        } else state.player
+        return state.copy(attackEffects = newEffects, mobs = aliveMobs, player = newPlayer)
     }
 
     // ==================== 9. GAME OVER ====================
 
     private fun checkGameOver(state: GameState): GameState {
-        if (state.player.hp <= 0) {
-            return state.copy(isGameOver = true, isRunning = false)
+        // Player still alive — nothing to do
+        if (state.player.hp > 0) return state
+        // Death animation already running — check if finished
+        if (state.player.deathAnimTime >= 0f) {
+            return if (state.player.deathAnimTime <= 0f)
+                state.copy(isGameOver = true, isRunning = false)
+            else state
         }
-        return state
+        // hp <= 0, animation not started yet — trigger it
+        return state.copy(player = state.player.copy(deathAnimTime = PLAYER_DEATH_ANIM_DURATION))
     }
 
     // ==================== MAP GENERATION ====================
@@ -511,64 +560,95 @@ class GameEngine {
         val objects = mutableListOf<MapObject>()
         val mobs = mutableListOf<Mob>()
 
-        // Деревья — дают Wood
-        repeat(40) { i ->
-            val x = (Math.random() * 2000 - 1000).toFloat()
-            val y = (Math.random() * 2000 - 1000).toFloat()
-            objects.add(MapObject("tree_$i", ObjectType.TREE, x, y, 24f, 3, ResourceType.WOOD))
+        // Trees — drop Wood (radius x2, map 6000×6000)
+        repeat(120) { i ->
+            val x = (Math.random() * 6000 - 3000).toFloat()
+            val y = (Math.random() * 6000 - 3000).toFloat()
+            objects.add(MapObject("tree_$i", ObjectType.TREE, x, y, 48f, 3, ResourceType.WOOD))
         }
-        // Камни — дают Stone
-        repeat(20) { i ->
-            val x = (Math.random() * 2000 - 1000).toFloat()
-            val y = (Math.random() * 2000 - 1000).toFloat()
-            objects.add(MapObject("rock_$i", ObjectType.ROCK, x, y, 16f, 4, ResourceType.STONE))
+        // Rocks — drop Stone (radius x2)
+        repeat(60) { i ->
+            val x = (Math.random() * 6000 - 3000).toFloat()
+            val y = (Math.random() * 6000 - 3000).toFloat()
+            objects.add(MapObject("rock_$i", ObjectType.ROCK, x, y, 32f, 4, ResourceType.STONE))
         }
-        // Кусты — дают Berry
-        repeat(15) { i ->
-            val x = (Math.random() * 2000 - 1000).toFloat()
-            val y = (Math.random() * 2000 - 1000).toFloat()
-            objects.add(MapObject("bush_$i", ObjectType.BUSH, x, y, 12f, 1, ResourceType.BERRY))
+        // Bushes — drop Berry (radius x2)
+        repeat(50) { i ->
+            val x = (Math.random() * 6000 - 3000).toFloat()
+            val y = (Math.random() * 6000 - 3000).toFloat()
+            objects.add(MapObject("bush_$i", ObjectType.BUSH, x, y, 24f, 1, ResourceType.BERRY))
         }
 
-        // Волки
-        repeat(8) { i ->
+        // Wolves — predators
+        repeat(15) { i ->
             mobs.add(Mob(
-                id = "wolf_$i",
-                type = MobType.WOLF,
-                x = (Math.random() * 1600 - 800).toFloat(),
-                y = (Math.random() * 1600 - 800).toFloat(),
+                id = "wolf_$i", type = MobType.WOLF,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
                 speed = MobType.WOLF.baseSpeed,
-                hp = MobType.WOLF.baseMaxHp,
-                maxHp = MobType.WOLF.baseMaxHp,
+                hp = MobType.WOLF.baseMaxHp, maxHp = MobType.WOLF.baseMaxHp,
                 radius = 16f
             ))
         }
-        // Олени
-        repeat(6) { i ->
+        // Bears — predators, slow and powerful
+        repeat(10) { i ->
             mobs.add(Mob(
-                id = "deer_$i",
-                type = MobType.DEER,
-                x = (Math.random() * 1600 - 800).toFloat(),
-                y = (Math.random() * 1600 - 800).toFloat(),
-                speed = MobType.DEER.baseSpeed,
-                hp = MobType.DEER.baseMaxHp,
-                maxHp = MobType.DEER.baseMaxHp,
-                radius = 14f
+                id = "bear_$i", type = MobType.BEAR,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
+                speed = MobType.BEAR.baseSpeed,
+                hp = MobType.BEAR.baseMaxHp, maxHp = MobType.BEAR.baseMaxHp,
+                radius = 22f
             ))
         }
-        // Гоблины
-        repeat(5) { i ->
+        // Foxes — predators, fast
+        repeat(12) { i ->
             mobs.add(Mob(
-                id = "goblin_$i",
-                type = MobType.GOBLIN,
-                x = (Math.random() * 1600 - 800).toFloat(),
-                y = (Math.random() * 1600 - 800).toFloat(),
-                speed = MobType.GOBLIN.baseSpeed,
-                hp = MobType.GOBLIN.baseMaxHp,
-                maxHp = MobType.GOBLIN.baseMaxHp,
-                radius = 13f,
-                patrolTargetX = (Math.random() * 1600 - 800).toFloat(),
-                patrolTargetY = (Math.random() * 1600 - 800).toFloat()
+                id = "fox_$i", type = MobType.FOX,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
+                speed = MobType.FOX.baseSpeed,
+                hp = MobType.FOX.baseMaxHp, maxHp = MobType.FOX.baseMaxHp,
+                radius = 12f
+            ))
+        }
+        // Deer — prey
+        repeat(18) { i ->
+            mobs.add(Mob(
+                id = "deer_$i", type = MobType.DEER,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
+                speed = MobType.DEER.baseSpeed,
+                hp = MobType.DEER.baseMaxHp, maxHp = MobType.DEER.baseMaxHp,
+                radius = 14f,
+                patrolTargetX = (Math.random() * 5000 - 2500).toFloat(),
+                patrolTargetY = (Math.random() * 5000 - 2500).toFloat()
+            ))
+        }
+        // Rabbits — prey, fastest
+        repeat(20) { i ->
+            mobs.add(Mob(
+                id = "rabbit_$i", type = MobType.RABBIT,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
+                speed = MobType.RABBIT.baseSpeed,
+                hp = MobType.RABBIT.baseMaxHp, maxHp = MobType.RABBIT.baseMaxHp,
+                radius = 8f,
+                patrolTargetX = (Math.random() * 5000 - 2500).toFloat(),
+                patrolTargetY = (Math.random() * 5000 - 2500).toFloat()
+            ))
+        }
+        // Birds — just wander, don't react to the player
+        repeat(15) { i ->
+            mobs.add(Mob(
+                id = "bird_$i", type = MobType.BIRD,
+                x = (Math.random() * 5000 - 2500).toFloat(),
+                y = (Math.random() * 5000 - 2500).toFloat(),
+                speed = MobType.BIRD.baseSpeed,
+                hp = MobType.BIRD.baseMaxHp, maxHp = MobType.BIRD.baseMaxHp,
+                radius = 6f,
+                patrolTargetX = (Math.random() * 5000 - 2500).toFloat(),
+                patrolTargetY = (Math.random() * 5000 - 2500).toFloat()
             ))
         }
 

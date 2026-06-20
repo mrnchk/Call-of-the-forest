@@ -53,7 +53,7 @@ fun MainMenuScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Заголовок
+            // Title
             Text(
                 text = "Call of\nthe Forest",
                 style = MaterialTheme.typography.titleLarge,
@@ -72,7 +72,7 @@ fun MainMenuScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(48.dp))
 
             if (isLoggedIn && username != null) {
-                // Залогинен — меню с Play
+                // Logged in — show Play menu
                 Text(
                     text = username!!,
                     style = MaterialTheme.typography.bodyMedium,

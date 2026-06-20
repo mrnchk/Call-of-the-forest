@@ -18,8 +18,6 @@ class LeaderboardService(
 ) {
 
     fun submit(userId: UUID, request: SubmitGameResultRequest): GameResultDto {
-        validate(request)
-
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("User not found") }
 
@@ -44,14 +42,10 @@ class LeaderboardService(
         return saved.toDto()
     }
 
-    fun top(limit: Int): List<LeaderboardEntryDto> {
-        require(limit in MIN_TOP_LIMIT..MAX_TOP_LIMIT) {
-            "limit must be in $MIN_TOP_LIMIT..$MAX_TOP_LIMIT"
-        }
-        return gameResultRepository
+    fun top(limit: Int): List<LeaderboardEntryDto> =
+        gameResultRepository
             .findAllByOrderByScoreDescCreatedAtAsc(PageRequest.of(0, limit))
             .mapIndexed { idx, result -> result.toLeaderboardEntry(rank = idx + 1) }
-    }
 
     fun forUser(userId: UUID): MyLeaderboardDto {
         val best = gameResultRepository.findFirstByUserIdOrderByScoreDescCreatedAtAsc(userId)
@@ -66,26 +60,6 @@ class LeaderboardService(
             rank = rank,
             recent = recent
         )
-    }
-
-    private fun validate(request: SubmitGameResultRequest) {
-        require(request.survivedSeconds >= 0) { "survivedSeconds must be non-negative" }
-        require(request.mobsKilled >= 0) { "mobsKilled must be non-negative" }
-        require(request.resourcesGathered >= 0) { "resourcesGathered must be non-negative" }
-        require(request.daysSurvived >= 0) { "daysSurvived must be non-negative" }
-
-        require(request.survivedSeconds <= MAX_SURVIVED_SECONDS) {
-            "survivedSeconds exceeds sanity cap ($MAX_SURVIVED_SECONDS)"
-        }
-        require(request.mobsKilled <= MAX_MOBS_KILLED) {
-            "mobsKilled exceeds sanity cap ($MAX_MOBS_KILLED)"
-        }
-        require(request.resourcesGathered <= MAX_RESOURCES_GATHERED) {
-            "resourcesGathered exceeds sanity cap ($MAX_RESOURCES_GATHERED)"
-        }
-        require(request.daysSurvived <= MAX_DAYS_SURVIVED) {
-            "daysSurvived exceeds sanity cap ($MAX_DAYS_SURVIVED)"
-        }
     }
 
     private fun GameResult.toDto(): GameResultDto = GameResultDto(
@@ -111,13 +85,6 @@ class LeaderboardService(
     )
 
     companion object {
-        const val MIN_TOP_LIMIT: Int = 1
-        const val MAX_TOP_LIMIT: Int = 100
         const val RECENT_RUNS_LIMIT: Int = 10
-
-        const val MAX_SURVIVED_SECONDS: Int = 7 * 24 * 3600
-        const val MAX_MOBS_KILLED: Int = 10_000
-        const val MAX_RESOURCES_GATHERED: Int = 100_000
-        const val MAX_DAYS_SURVIVED: Int = 365
     }
 }

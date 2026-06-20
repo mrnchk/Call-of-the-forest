@@ -1,17 +1,18 @@
 package com.cotf.server.controller
 
-import com.cotf.server.dto.ErrorResponse
 import com.cotf.server.dto.GameResultDto
 import com.cotf.server.dto.LeaderboardEntryDto
+import com.cotf.server.dto.LeaderboardPaginationLimits
 import com.cotf.server.dto.MyLeaderboardDto
 import com.cotf.server.dto.SubmitGameResultRequest
 import com.cotf.server.service.LeaderboardService
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.MethodArgumentNotValidException
-import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -22,6 +23,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/leaderboard")
+@Validated
 class LeaderboardController(private val leaderboardService: LeaderboardService) {
 
     @PostMapping("/results")
@@ -36,7 +38,10 @@ class LeaderboardController(private val leaderboardService: LeaderboardService) 
 
     @GetMapping("/top")
     fun top(
-        @RequestParam(defaultValue = "20") limit: Int
+        @RequestParam(defaultValue = "20")
+        @Min(LeaderboardPaginationLimits.MIN_TOP)
+        @Max(LeaderboardPaginationLimits.MAX_TOP)
+        limit: Int
     ): ResponseEntity<List<LeaderboardEntryDto>> {
         return ResponseEntity.ok(leaderboardService.top(limit))
     }
@@ -49,17 +54,4 @@ class LeaderboardController(private val leaderboardService: LeaderboardService) 
 
     private fun currentUserId(request: HttpServletRequest): UUID =
         UUID.fromString(request.getAttribute("userId") as String)
-
-    @ExceptionHandler(IllegalArgumentException::class)
-    fun handleIllegalArgument(e: IllegalArgumentException): ResponseEntity<ErrorResponse> {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(ErrorResponse(error = "bad_request", message = e.message ?: "Invalid request"))
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidation(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
-        val message = e.bindingResult.fieldErrors.joinToString("; ") { "${it.field}: ${it.defaultMessage}" }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(ErrorResponse(error = "validation_error", message = message))
-    }
 }

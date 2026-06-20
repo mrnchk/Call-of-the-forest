@@ -180,7 +180,7 @@ class GameEngine {
             } else mob
         }
         val aliveMobs = updatedMobs.filter { it.hp > 0 }
-        val killedThisAttack = updatedMobs.size - aliveMobs.size
+        val killedByThisAttack = updatedMobs.size - aliveMobs.size
 
         val effect = AttackEffect(
             x = attackX, y = attackY,
@@ -191,7 +191,7 @@ class GameEngine {
             player = player.copy(attackCooldown = 0.4f),
             mobs = aliveMobs,
             attackEffects = state.attackEffects + effect,
-            stats = state.stats.copy(mobsKilled = state.stats.mobsKilled + killedThisAttack)
+            stats = state.stats.copy(mobsKilled = state.stats.mobsKilled + killedByThisAttack)
         )
     }
 

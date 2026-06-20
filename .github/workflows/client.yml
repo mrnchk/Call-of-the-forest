@@ -1,0 +1,44 @@
+name: Client CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+      - '.github/workflows/client.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+      - '.github/workflows/client.yml'
+
+jobs:
+  unit-test:
+    name: JVM Unit Tests (no emulator)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x client/gradlew
+
+      - name: Run unit tests
+        working-directory: client
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-test-report
+          path: client/app/build/reports/tests/testDebugUnitTest/
+          retention-days: 7

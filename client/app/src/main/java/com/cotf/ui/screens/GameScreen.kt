@@ -51,13 +51,23 @@ import com.cotf.viewmodel.GameViewModel
 
 @Composable
 fun GameScreen(
-    onExitToMenu: () -> Unit,
-    viewModel: GameViewModel = viewModel()
+    onExitToMenu: () -> Unit
 ) {
+    val context = LocalContext.current
+    val app = remember { context.applicationContext as CotfApp }
+    val viewModel: GameViewModel = viewModel(
+        factory = GameViewModel.Factory(app.leaderboardApi, app.userSession)
+    )
+
     val state by viewModel.engine.state.collectAsState()
+    val submitState by viewModel.submitState.collectAsState()
     var isPaused by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.startGame() }
+
+    LaunchedEffect(state.isGameOver) {
+        if (state.isGameOver) viewModel.submitResultIfNeeded(state.stats)
+    }
 
     DisposableEffect(Unit) {
         onDispose { viewModel.pauseGame() }
@@ -163,6 +173,9 @@ fun GameScreen(
 
         if (state.isGameOver) {
             GameOverOverlay(
+                stats = state.stats,
+                submitState = submitState,
+                onRetrySubmit = { viewModel.retrySubmit(state.stats) },
                 onExitToMenu = { viewModel.exitGame(); onExitToMenu() }
             )
         }

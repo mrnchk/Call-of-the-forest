@@ -13,7 +13,8 @@ data class GameState(
     val timeOfDay: Float = 0.3f,       // 0=полночь, 0.5=полдень
     val isRunning: Boolean = true,
     val isGameOver: Boolean = false,
-    val attackEffects: List<AttackEffect> = emptyList()
+    val attackEffects: List<AttackEffect> = emptyList(),
+    val stats: GameStats = GameStats()
 )
 
 data class Player(

@@ -24,7 +24,12 @@ class JwtAuthFilter(
         val path = httpRequest.requestURI
 
         // Публичные эндпоинты (без JWT)
-        val publicPaths = setOf("/api/auth/register", "/api/auth/signin", "/api/auth/refresh")
+        val publicPaths = setOf(
+            "/api/auth/register",
+            "/api/auth/signin",
+            "/api/auth/refresh",
+            "/api/leaderboard/top"
+        )
         if (path in publicPaths) {
             chain.doFilter(request, response)
             return

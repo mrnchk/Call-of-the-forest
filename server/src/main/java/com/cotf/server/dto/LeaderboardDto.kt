@@ -1,42 +1,24 @@
-package com.cotf.network.dto
+package com.cotf.server.dto
 
-data class RegisterRequest(
-    val username: String,
-    val password: String
-)
-
-data class LoginRequest(
-    val username: String,
-    val password: String
-)
-
-data class RefreshRequest(
-    val refreshToken: String
-)
-
-data class AuthResponse(
-    val accessToken: String,
-    val refreshToken: String,
-    val username: String
-)
-
-data class UserDto(
-    val id: String,
-    val username: String,
-    val role: String
-)
-
-data class ErrorResponse(
-    val error: String,
-    val message: String
-)
-
-// ===================== Leaderboard =====================
+import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotNull
+import java.time.Instant
 
 data class SubmitGameResultRequest(
+    @field:NotNull
+    @field:Min(value = 0, message = "survivedSeconds must be non-negative")
     val survivedSeconds: Int,
+
+    @field:NotNull
+    @field:Min(value = 0, message = "mobsKilled must be non-negative")
     val mobsKilled: Int,
+
+    @field:NotNull
+    @field:Min(value = 0, message = "resourcesGathered must be non-negative")
     val resourcesGathered: Int,
+
+    @field:NotNull
+    @field:Min(value = 0, message = "daysSurvived must be non-negative")
     val daysSurvived: Int
 )
 
@@ -48,7 +30,7 @@ data class GameResultDto(
     val mobsKilled: Int,
     val resourcesGathered: Int,
     val daysSurvived: Int,
-    val createdAt: String
+    val createdAt: Instant
 )
 
 data class LeaderboardEntryDto(
@@ -59,7 +41,7 @@ data class LeaderboardEntryDto(
     val mobsKilled: Int,
     val resourcesGathered: Int,
     val daysSurvived: Int,
-    val createdAt: String
+    val createdAt: Instant
 )
 
 data class MyLeaderboardDto(

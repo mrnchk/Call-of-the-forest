@@ -43,7 +43,7 @@ class ScoreCalculatorTest {
     @Test
     fun `survivedSeconds is floored from Float`() {
         val stats = GameStats(survivedSeconds = 9.99f)
-        // 9.99 → 9 секунд
+        // 9.99 → 9 seconds (truncated to Int before calculation)
         assertEquals(9, ScoreCalculator.calculate(stats))
     }
 }

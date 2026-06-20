@@ -29,8 +29,8 @@ fun VirtualJoystick(
     var stickX by remember { mutableFloatStateOf(0f) }
     var stickY by remember { mutableFloatStateOf(0f) }
 
-    val outerRadius = 70f
-    val innerRadius = 25f
+    val outerRadius = 90f
+    val innerRadius = 30f
 
     Canvas(
         modifier = modifier
@@ -46,14 +46,14 @@ fun VirtualJoystick(
                         stickX += dragAmount.x
                         stickY += dragAmount.y
 
-                        // Ограничиваем радиус
+                        // Clamp to joystick radius
                         val dist = sqrt(stickX * stickX + stickY * stickY)
                         if (dist > outerRadius) {
                             stickX = stickX / dist * outerRadius
                             stickY = stickY / dist * outerRadius
                         }
 
-                        // Нормализуем -1..1 и отправляем в движок
+                        // Normalize to -1..1 and send to engine
                         engine.setInput(
                             x = stickX / outerRadius,
                             y = stickY / outerRadius
@@ -72,13 +72,13 @@ fun VirtualJoystick(
                 )
             }
     ) {
-        // Внешний круг
+        // Outer ring
         drawCircle(
             color = Color(0x40FFFFFF),
             radius = outerRadius,
             center = center
         )
-        // Внутренний круг (стик)
+        // Inner circle (stick)
         drawCircle(
             color = Color(0x80FFFFFF),
             radius = innerRadius,

@@ -2,6 +2,7 @@ package com.cotf
 
 import android.app.Application
 import com.cotf.network.AuthApi
+import com.cotf.network.LeaderboardApi
 import com.cotf.network.RetrofitClient
 import com.cotf.session.UserSession
 
@@ -10,5 +11,9 @@ class CotfApp : Application() {
 
     val authApi: AuthApi by lazy {
         RetrofitClient.create(AuthApi::class.java, userSession)
+    }
+
+    val leaderboardApi: LeaderboardApi by lazy {
+        RetrofitClient.create(LeaderboardApi::class.java, userSession)
     }
 }

@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.cotf.navigation.Routes
 import com.cotf.ui.screens.GameScreen
+import com.cotf.ui.screens.LeaderboardScreen
 import com.cotf.ui.screens.LoginScreen
 import com.cotf.ui.screens.MainMenuScreen
 import com.cotf.ui.theme.CallOfTheForestTheme
@@ -41,6 +42,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
+                        }
+                        composable(Routes.LEADERBOARD) {
+                            LeaderboardScreen(navController = navController)
                         }
                     }
                 }

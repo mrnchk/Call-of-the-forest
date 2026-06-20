@@ -71,7 +71,7 @@ class GameEngine {
         inputX = 0f; inputY = 0f
         attackRequested = false; harvestRequested = false; consumeBerryRequested = false
         val (objects, mobs) = generateMap()
-        _state.value = GameState(objects = objects, mobs = mobs)
+        _state.value = GameState(objects = objects, mobs = mobs, stats = GameStats())
     }
 
     fun destroy() {
@@ -111,11 +111,23 @@ class GameEngine {
         s = resolveCollisions(s, deltaSec)
         s = updateSurvival(s, deltaSec)
         s = s.copy(camera = Camera(x = s.player.x, y = s.player.y))
-        s = s.copy(timeOfDay = (s.timeOfDay + 0.0001f * deltaSec * 60) % 1f)
+        s = advanceTime(s, deltaSec)
         s = updateEffects(s, deltaSec)
+        s = tickSurvivedTime(s, deltaSec)
         s = checkGameOver(s)
         return s
     }
+
+    private fun advanceTime(state: GameState, deltaSec: Float): GameState {
+        val raw = state.timeOfDay + 0.0001f * deltaSec * 60
+        val newTime = raw % 1f
+        val dayPassed = raw >= 1f
+        val newStats = if (dayPassed) state.stats.copy(daysSurvived = state.stats.daysSurvived + 1) else state.stats
+        return state.copy(timeOfDay = newTime, stats = newStats)
+    }
+
+    private fun tickSurvivedTime(state: GameState, deltaSec: Float): GameState =
+        state.copy(stats = state.stats.copy(survivedSeconds = state.stats.survivedSeconds + deltaSec))
 
     // ==================== 1. PLAYER MOVEMENT ====================
 
@@ -166,7 +178,9 @@ class GameEngine {
                     y = mob.y + knockbackDy
                 )
             } else mob
-        }.filter { it.hp > 0 }
+        }
+        val aliveMobs = updatedMobs.filter { it.hp > 0 }
+        val killedByThisAttack = updatedMobs.size - aliveMobs.size
 
         val effect = AttackEffect(
             x = attackX, y = attackY,
@@ -175,8 +189,9 @@ class GameEngine {
 
         return state.copy(
             player = player.copy(attackCooldown = 0.4f),
-            mobs = updatedMobs,
-            attackEffects = state.attackEffects + effect
+            mobs = aliveMobs,
+            attackEffects = state.attackEffects + effect,
+            stats = state.stats.copy(mobsKilled = state.stats.mobsKilled + killedByThisAttack)
         )
     }
 
@@ -227,7 +242,8 @@ class GameEngine {
 
         return state.copy(
             objects = newObjects,
-            player = player.copy(inventory = newInventory)
+            player = player.copy(inventory = newInventory),
+            stats = state.stats.copy(resourcesGathered = state.stats.resourcesGathered + 1)
         )
     }
 

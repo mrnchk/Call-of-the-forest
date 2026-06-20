@@ -90,6 +90,14 @@ fun MainMenuScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 ForestButton(
+                    text = "Leaderboard",
+                    onClick = { navController.navigate(Routes.LEADERBOARD) },
+                    modifier = Modifier.width(200.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ForestButton(
                     text = "Logout",
                     onClick = {
                         userSession.logout()
@@ -100,10 +108,18 @@ fun MainMenuScreen(navController: NavController) {
                     modifier = Modifier.width(200.dp)
                 )
             } else {
-                // Не залогинен — только Login
+                // Не залогинен — Login + Leaderboard (как витрина)
                 ForestButton(
                     text = "Login",
                     onClick = { navController.navigate(Routes.LOGIN) },
+                    modifier = Modifier.width(200.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ForestButton(
+                    text = "Leaderboard",
+                    onClick = { navController.navigate(Routes.LEADERBOARD) },
                     modifier = Modifier.width(200.dp)
                 )
             }

@@ -1,7 +1,5 @@
 package com.cotf.network.dto
 
-import com.google.gson.annotations.SerializedName
-
 data class RegisterRequest(
     val username: String,
     val password: String
@@ -31,4 +29,41 @@ data class UserDto(
 data class ErrorResponse(
     val error: String,
     val message: String
+)
+
+// ===================== Leaderboard =====================
+
+data class SubmitGameResultRequest(
+    val survivedSeconds: Int,
+    val mobsKilled: Int,
+    val resourcesGathered: Int,
+    val daysSurvived: Int
+)
+
+data class GameResultDto(
+    val id: String,
+    val username: String,
+    val score: Int,
+    val survivedSeconds: Int,
+    val mobsKilled: Int,
+    val resourcesGathered: Int,
+    val daysSurvived: Int,
+    val createdAt: String
+)
+
+data class LeaderboardEntryDto(
+    val rank: Int,
+    val username: String,
+    val score: Int,
+    val survivedSeconds: Int,
+    val mobsKilled: Int,
+    val resourcesGathered: Int,
+    val daysSurvived: Int,
+    val createdAt: String
+)
+
+data class MyLeaderboardDto(
+    val best: GameResultDto?,
+    val rank: Int?,
+    val recent: List<GameResultDto>
 )

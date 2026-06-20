@@ -123,13 +123,40 @@ class LeaderboardControllerTest {
     }
 
     @Test
-    fun `GET top returns results sorted by score descending with ranks`() {
+    fun `GET top returns one entry per user — best score only — sorted descending`() {
         val (tokenA, _) = registerUserAndToken("alice")
         val (tokenB, _) = registerUserAndToken("bob")
 
-        submit(tokenA, 100, 1, 0, 0) // score = 100 + 50 = 150
-        submit(tokenB, 100, 5, 0, 0) // score = 100 + 250 = 350
-        submit(tokenA, 60, 0, 10, 1) // score = 60 + 50 + 100 = 210
+        submit(tokenA, 100, 1, 0, 0) // alice run 1: 100 + 50       = 150
+        submit(tokenB, 100, 5, 0, 0) // bob   run 1: 100 + 250      = 350
+        submit(tokenA, 60, 0, 10, 1) // alice run 2: 60 + 50 + 100  = 210 ← alice best
+
+        // Alice appears only once (her best = 210), bob once (350)
+        // Expected order: bob(350) rank 1, alice(210) rank 2
+        val json = mockMvc.perform(get("/api/leaderboard/top?limit=10"))
+            .andExpect(status().isOk)
+            .andReturn().response.contentAsString
+
+        val entries: List<LeaderboardEntryDto> = objectMapper.readValue(
+            json,
+            objectMapper.typeFactory.constructCollectionType(List::class.java, LeaderboardEntryDto::class.java)
+        )
+        assertEquals(2, entries.size)
+        assertEquals(1, entries[0].rank)
+        assertEquals("bob", entries[0].username)
+        assertEquals(350, entries[0].score)
+        assertEquals(2, entries[1].rank)
+        assertEquals("alice", entries[1].username)
+        assertEquals(210, entries[1].score)
+    }
+
+    @Test
+    fun `GET top deduplicates — user with multiple runs appears only once`() {
+        val (token, _) = registerUserAndToken("speedrunner")
+
+        submit(token, 10, 0, 0, 0)  // score = 10
+        submit(token, 50, 0, 0, 0)  // score = 50  ← best
+        submit(token, 30, 0, 0, 0)  // score = 30
 
         val json = mockMvc.perform(get("/api/leaderboard/top?limit=10"))
             .andExpect(status().isOk)
@@ -139,14 +166,10 @@ class LeaderboardControllerTest {
             json,
             objectMapper.typeFactory.constructCollectionType(List::class.java, LeaderboardEntryDto::class.java)
         )
-        assertEquals(3, entries.size)
+        assertEquals(1, entries.size)
+        assertEquals("speedrunner", entries[0].username)
+        assertEquals(50, entries[0].score)
         assertEquals(1, entries[0].rank)
-        assertEquals("bob", entries[0].username)
-        assertEquals(350, entries[0].score)
-        assertEquals(2, entries[1].rank)
-        assertEquals(210, entries[1].score)
-        assertEquals(3, entries[2].rank)
-        assertEquals(150, entries[2].score)
     }
 
     @Test
@@ -164,7 +187,7 @@ class LeaderboardControllerTest {
         val me = objectMapper.readValue(json, MyLeaderboardDto::class.java)
         assertNotNull(me.best)
         assertEquals(210, me.best!!.score)
-        assertEquals(2, me.rank) // позади bob (350)
+        assertEquals(2, me.rank) // behind bob (350) — rank counts distinct users with higher best
         assertEquals(2, me.recent.size)
         assertTrue(me.recent.first().createdAt >= me.recent.last().createdAt)
     }

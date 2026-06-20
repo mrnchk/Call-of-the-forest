@@ -42,9 +42,13 @@ class LeaderboardService(
         return saved.toDto()
     }
 
+    /**
+     * Returns up to [limit] entries, one per user (best score only).
+     * Ties are broken by earliest submission (first-come-first-served).
+     */
     fun top(limit: Int): List<LeaderboardEntryDto> =
         gameResultRepository
-            .findAllByOrderByScoreDescCreatedAtAsc(PageRequest.of(0, limit))
+            .findBestPerUserOrderByScoreDescCreatedAtAsc(PageRequest.of(0, limit))
             .mapIndexed { idx, result -> result.toLeaderboardEntry(rank = idx + 1) }
 
     fun forUser(userId: UUID): MyLeaderboardDto {
@@ -53,7 +57,10 @@ class LeaderboardService(
             .findAllByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, RECENT_RUNS_LIMIT))
             .map { it.toDto() }
 
-        val rank = best?.let { gameResultRepository.countByScoreGreaterThan(it.score).toInt() + 1 }
+        // Rank = number of distinct users whose best score beats this user's best + 1
+        val rank = best?.let {
+            gameResultRepository.countUsersWithBestScoreGreaterThan(it.score).toInt() + 1
+        }
 
         return MyLeaderboardDto(
             best = best?.toDto(),

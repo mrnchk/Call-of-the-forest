@@ -21,6 +21,39 @@
 - авторизация через JWT;
 - лидерборд через backend API.
 
+## Скриншоты
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/images/login.png" width="250" alt="Экран авторизации"/><br/>
+      <sub>Авторизация</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/menu.png" width="250" alt="Главное меню"/><br/>
+      <sub>Главное меню</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/leaderboard.png" width="250" alt="Лидерборд"/><br/>
+      <sub>Лидерборд</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/images/game-day.png" width="250" alt="Игровой процесс днём"/><br/>
+      <sub>Игровой процесс днём</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/game-night.png" width="250" alt="Игровой процесс ночью"/><br/>
+      <sub>Игровой процесс ночью</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/death.png" width="250" alt="Экран смерти"/><br/>
+      <sub>Экран смерти</sub>
+    </td>
+  </tr>
+</table>
+
 ## Стек
 
 | Категория | Технология |
@@ -36,22 +69,20 @@
 
 | Участник | Зона ответственности |
 | :--- | :--- |
-| Губанов Георгий | Базовая архитектура клиента, игровой цикл, core-системы, стартовая интеграция backend и JWT |
-| Чернокульская Алина | Визуальная часть, игровые сценарии, клиентские тесты, исправления и стабилизация лидерборда |
-| Колесова Софья | Лидерборд, серверная статистика, расчет очков и интеграция результатов партии |
-| Елисеев Мирон | Рендер игрового мира, окружение, спрайты, визуализация карты, мобов и смены времени суток |
-| Подмарев Александр | UI-экраны, HUD, навигация, отображение состояния игрока и документация по требованиям |
+| Губанов Георгий | Core Engine & Physics |
+| Елисеев Мирон | Render & Environment |
+| Колесова Софья | Entities Logic |
+| Подмарев Александр | UI, Meta & Progression |
+| Чернокульская Алина | Network & Services |
 
 ## Документация
 
 Подробное описание проекта вынесено в отдельные файлы репозитория:
 
 - архитектура приложения (`client/docs/ARCHITECTURE.md`);
-- функциональные требования (`client/docs/FUNCTIONAL_REQUIREMENTS.md`);
 - процесс разработки (`client/docs/PROCESS_AND_TASKS.md`);
 - план релизов MVP (`client/docs/MVP_MILESTONES.md`);
 - стек технологий и инструментарий (`client/docs/TECH_STACK.md`);
-- тестирование (`client/docs/TESTING.md`);
 - API сервера (`server/README.md`) — авторизация по JWT и лидерборд.
 
 ## Структура репозитория

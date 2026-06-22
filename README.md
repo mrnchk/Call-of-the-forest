@@ -1,10 +1,10 @@
 # Call of the forest
 
-2D survival game для Android, разрабатываемая на Kotlin с использованием Jetpack Compose, Canvas API, Coroutines, Room, Hilt, Ktor WebSockets и 2D-физики через JBox2D / dyn4j.
+2D survival game для Android, разрабатываемая на Kotlin с использованием Jetpack Compose, Canvas API, Coroutines, Retrofit/OkHttp и Spring Boot backend.
 
 ## О проекте
 
-Игра строится вокруг исследования 2D-мира, сбора ресурсов, боя с мобами, крафта, смены времени суток, глобальных событий и кооперативного мультиплеера.
+Игра строится вокруг исследования 2D-мира, сбора ресурсов, боя с мобами, выживания, смены времени суток и лидерборда.
 
 Проект использует UDF-подход для управления состоянием и адаптированную ECS-модель для игрового цикла. Основная идея архитектуры — отделить игровую логику от слоя отрисовки и хранить состояние игры в едином `GameState`.
 
@@ -12,14 +12,47 @@
 
 - перемещение игрока по 2D-карте;
 - отрисовка мира через Compose Canvas;
-- базовая физика и коллизии;
+- базовые коллизии;
 - ближний бой и расчет урона;
-- инвентарь и крафт;
+- инвентарь и сбор ресурсов;
 - смена дня и ночи;
-- погодные и глобальные события;
-- локальное сохранение через Room;
-- подключение второго игрока через WebSockets;
-- лидерборд через внешний API.
+- голод, ночной холод и здоровье игрока;
+- AI мобов: патрулирование, преследование, атака и бегство;
+- авторизация через JWT;
+- лидерборд через backend API.
+
+## Скриншоты
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/images/login.png" width="250" alt="Экран авторизации"/><br/>
+      <sub>Авторизация</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/menu.png" width="250" alt="Главное меню"/><br/>
+      <sub>Главное меню</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/leaderboard.png" width="250" alt="Лидерборд"/><br/>
+      <sub>Лидерборд</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/images/game-day.png" width="250" alt="Игровой процесс днём"/><br/>
+      <sub>Игровой процесс днём</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/game-night.png" width="250" alt="Игровой процесс ночью"/><br/>
+      <sub>Игровой процесс ночью</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/death.png" width="250" alt="Экран смерти"/><br/>
+      <sub>Экран смерти</sub>
+    </td>
+  </tr>
+</table>
 
 ## Стек
 
@@ -28,11 +61,9 @@
 | Язык | Kotlin |
 | UI и рендер | Jetpack Compose, Canvas API |
 | Асинхронность | Coroutines, Flow, StateFlow |
-| Физика | JBox2D / dyn4j |
-| Сеть | Ktor Client, WebSockets |
-| Локальная БД | Room |
-| DI | Hilt |
-| Backend-интеграции | PostgreSQL API |
+| Сеть | Retrofit, OkHttp |
+| Хранение сессии | SharedPreferences |
+| Backend | Spring Boot, PostgreSQL, JWT |
 
 ## Состав разработчиков
 
@@ -57,7 +88,7 @@
 ## Структура репозитория
 
 ```
-client/   Android-приложение (Kotlin, Compose, JBox2D)
+client/   Android-приложение (Kotlin, Compose)
 server/   Spring Boot бэкенд (JWT auth, PostgreSQL, лидерборд)
 ```
 
@@ -75,7 +106,7 @@ cd client && ./gradlew test       # клиент (нужен Android SDK)
 
 ## Статус
 
-Проект находится в стадии разработки MVP. Основной фокус — базовый игровой цикл, рендер 2D-мира, работа с `GameState`, боевая система и подготовка сетевой синхронизации.
+Проект находится в стадии MVP.
 
 Готовые фичи:
 

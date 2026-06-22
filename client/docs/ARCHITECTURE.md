@@ -1,134 +1,148 @@
 ## Архитектура приложения
 
-Проект построен на базе архитектурного паттерна UDF (Unidirectional Data Flow) в связке с адаптированным ECS (Entity-Component-System) для игрового цикла. Данный подход обеспечивает строгую изоляцию бизнес-логики от слоя отрисовки, что минимизирует состояние гонки (race conditions) при мультиплеере и обеспечивает высокую модульность кода.
+Проект построен на базе архитектурного паттерна UDF (Unidirectional Data Flow) в связке с адаптированным ECS (Entity-Component-System) для игрового цикла. Данный подход отделяет игровую логику от слоя отрисовки и упрощает работу с состоянием игры.
 
 ### 1. Высокоуровневая схема (Game Loop & Render)
 
-Игровой цикл (Game Loop) работает в отдельной корутине, изолированно от UI. Состояние игры иммутабельно, и каждый кадр (тик) генерируется новое состояние на основе действий игроков и работы внутренних систем.
-
+Игровой цикл (Game Loop) работает в корутине. Состояние игры хранится в `GameState`, обновляется внутри `GameEngine` и передается в UI через `StateFlow`.
 
 ```mermaid
 flowchart TD
-    subgraph InputLayer["Слой Ввода"]
-        UI_Input["Ввод игрока: Джойстик, Кнопки"]
-        Net_Input["Сетевые пакеты: Действия 2-го игрока"]
+    subgraph InputLayer["Слой ввода"]
+        UI_Input["Ввод игрока: джойстик, кнопки"]
     end
 
-    subgraph GameEngine["Игровой Движок - Корутина ~60 FPS"]
+    subgraph GameEngine["Игровой движок - корутина ~60 FPS"]
         StartTick(("Начало кадра"))
         CurrentState[("Текущий GameState")]
 
-        Sys_Physics["Physics System: Перемещение, Box2D коллизии"]
-        Sys_Combat["Combat System: Расчет урона, хитбоксы, PvP/PvE"]
-        Sys_AI["AI System: Стейт-машина мобов"]
-        Sys_Event["Environment System: Погода, Время суток, Алтарь"]
+        Sys_Movement["Movement System: перемещение игрока"]
+        Sys_Combat["Combat System: атака, урон, knockback"]
+        Sys_Harvest["Harvest System: сбор ресурсов"]
+        Sys_AI["AI System: стейт-машина мобов"]
+        Sys_Collision["Collision System: базовые круговые коллизии"]
+        Sys_Survival["Survival System: здоровье, голод, ночной холод"]
+        Sys_Time["Time System: смена дня и ночи"]
 
         StartTick --> CurrentState
-        CurrentState --> Sys_Physics
-        Sys_Physics --> Sys_Combat
-        Sys_Combat --> Sys_AI
-        Sys_AI --> Sys_Event
+        CurrentState --> Sys_Movement
+        Sys_Movement --> Sys_Combat
+        Sys_Combat --> Sys_Harvest
+        Sys_Harvest --> Sys_AI
+        Sys_AI --> Sys_Collision
+        Sys_Collision --> Sys_Survival
+        Sys_Survival --> Sys_Time
 
-        Sys_Event --> NewState[("Новый GameState")]
+        Sys_Time --> NewState[("Новый GameState")]
     end
 
-    subgraph RenderLayer["Слой Отрисовки - Compose"]
+    subgraph RenderLayer["Слой отрисовки - Compose"]
         StateFlow(("StateFlow"))
-        CanvasRenderer["Canvas API: Спрайты, Тайлы, Погода"]
-        UIRenderer["Compose UI: HUD, Инвентарь, Меню"]
+        CanvasRenderer["Canvas API: мир, объекты, мобы, игрок"]
+        UIRenderer["Compose UI: HUD, инвентарь, меню"]
     end
 
-    UI_Input -->|User Actions| CurrentState
-    Net_Input -->|User Actions| CurrentState
+    UI_Input -->|PlayerInput| CurrentState
 
     NewState -->|Emit| StateFlow
     StateFlow -->|Рекомпозиция UI| UIRenderer
     StateFlow -->|Отрисовка кадра| CanvasRenderer
     NewState -.->|Следующий тик| StartTick
 ```
+
 ### 2. Управление состоянием (State Management)
-Единственным источником истины является GameState. Изменения применяются через чистые функции (pure functions), принимающие предыдущий GameState и Action, и возвращающие новый GameState. Отсутствие мутабельных переменных в бизнес-логике критически важно для предсказуемой интерполяции в мультиплеере и упрощает написание модульных тестов.
 
-### 3. Топология мультиплеера (Client-Server over WebSockets)
+Единственным источником истины является `GameState`. Он содержит данные игрока, мобов, объектов карты, времени, состояния паузы, game over и статистики партии.
 
-Используется клиент-серверная модель на базе Ktor. Один из игроков (Хост) берет на себя вычисление основного игрового цикла и является авторитетным сервером, пресекая рассинхронизацию.
+`GameViewModel` держит состояние в `StateFlow`, принимает ввод пользователя и вызывает методы `GameEngine`. UI только отображает текущее состояние и отправляет пользовательские действия.
 
+### 3. Сетевая интеграция
 
-### 3. Топология мультиплеера (Client-Server over WebSockets)
+Клиент взаимодействует с backend через REST API на Retrofit/OkHttp.
 
 ```mermaid
 sequenceDiagram
     autonumber
 
-    participant C1 as Клиент 1 / Хост
-    participant DB as Room / Локальная БД
-    participant Srv as Ktor Server / Слой логики
-    participant C2 as Клиент 2
-    participant Leader as PostgreSQL API / Лидерборд
+    participant UI as Android UI
+    participant VM as ViewModel
+    participant API as Retrofit API
+    participant Srv as Spring Boot Backend
+    participant DB as PostgreSQL
 
-    C1->>Srv: InputAction: ходьба, удар мечом
-    C2->>Srv: InputAction: поднятие лута
+    UI->>VM: register / signin / refresh
+    VM->>API: HTTP request
+    API->>Srv: Auth request
+    Srv->>DB: User data
+    DB-->>Srv: Result
+    Srv-->>API: JWT tokens
+    API-->>VM: Auth response
+    VM-->>UI: Session state
 
-    Note over Srv: Игровой цикл ECS<br/>Валидация действий<br/>Обновление позиции и инвентаря<br/>Спавн погоды
-
-    Srv->>C1: StateDelta: координаты, инвентарь
-    Srv->>C2: StateDelta: координаты, инвентарь
-
-    Note over C1,C2: Jetpack Compose рендерит<br/>новое состояние на экранах
-
-    opt Автосохранение / Выход
-        C1->>DB: Save GameState
-    end
-
-    opt Окончание игры / Смерть
-        Srv->>Leader: Отправка результатов: очки, дни выживания
-        Leader-->>Srv: 200 OK
-    end
+    UI->>VM: Game over
+    VM->>API: Submit game result
+    API->>Srv: Score, survived time, resources, kills
+    Srv->>DB: Save result
+    DB-->>Srv: OK
+    Srv-->>API: Leaderboard entry
 ```
 
-### 4. Взаимодействие компонентов игры (ECS концепт)
+### 4. Взаимодействие компонентов игры
 
-Внутри GameState все объекты представлены в виде сущностей (Entities). Системы не хранят данные, а только фильтруют сущности по нужным компонентам и применяют к ним логику.
+Игровая логика разделена на независимые системы внутри `GameEngine`:
 
-### 4. Взаимодействие компонентов игры (ECS концепт)
+- перемещение игрока;
+- атака и расчет урона;
+- сбор ресурсов;
+- употребление ягод;
+- AI мобов;
+- коллизии;
+- голод, здоровье и ночной холод;
+- смена времени суток;
+- подсчет статистики партии.
 
 ```mermaid
 erDiagram
-    GAME_STATE ||--o{ ENTITY : contains
-    ENTITY ||--o| POSITION_COMPONENT : has
-    ENTITY ||--o| HEALTH_COMPONENT : has
-    ENTITY ||--o| AI_COMPONENT : has
-    ENTITY ||--o| INVENTORY_COMPONENT : has
+    GAME_STATE ||--|| PLAYER : contains
+    GAME_STATE ||--o{ MOB : contains
+    GAME_STATE ||--o{ MAP_OBJECT : contains
+    GAME_STATE ||--|| GAME_STATS : contains
 
     GAME_STATE {
-        int timeOfDay
-        string weatherCondition
-        string entities
+        float timeOfDay
+        int dayCount
+        boolean isPaused
+        boolean isGameOver
     }
 
-    ENTITY {
-        string id
-        string type
-    }
-
-    POSITION_COMPONENT {
+    PLAYER {
         float x
         float y
-        float rotation
+        int health
+        float hunger
+        string inventory
     }
 
-    HEALTH_COMPONENT {
-        int currentHealth
-        int maxHealth
+    MOB {
+        string type
+        float x
+        float y
+        int health
+        string behaviorState
     }
 
-    AI_COMPONENT {
-        string state
-        string targetEntityId
+    MAP_OBJECT {
+        string type
+        float x
+        float y
+        int amount
+        boolean depleted
     }
 
-    INVENTORY_COMPONENT {
-        string items
-        int capacity
+    GAME_STATS {
+        int score
+        int mobsKilled
+        int resourcesCollected
+        long survivedMillis
     }
 ```
